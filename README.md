@@ -1,21 +1,33 @@
 net-shovel
 ==========
 
-Dig up statistics on your network traffic!
+net-shovel is currently under active development and a fully functional version is not yet available. The requirements will change as the project develops.
 
-----
+See the [develop](https://github.com/egeldenhuys/net-shovel/tree/develop) branch and other [branches](https://github.com/egeldenhuys/net-shovel/branches) for the current state of the project.
 
-### Development Environment
+## Problem
+A machine on the network is consuming all the Internet bandwidth.
+
+## Aim
+View which machine is consuming all the bandwidth by collection statistics on Internet traffic passing through the machine running net-shovel.
+
+### Requirements for statistics
+- List `local | remote | down | up`
+- View top local down and up
+- List connections for a certain IP
+- View totals for a certain IP
+- Sort down, up for a certain list
+- View stats by minute, hour, day, week, month
+
+## Development Environment
 
 - Linux Mint 18
 
-#### Dependencies
+### Dependencies
 - Python 2.7.11+
 	- python-pip
 		- dpkt
 		- setuptools
 		- IPy
 		- dnspython
-- tcpdump 4.7.4
-- libpcap 1.7.4
-- OpenSSL 1.0.2g-fips  1 Mar 2016
+- tcpdump
