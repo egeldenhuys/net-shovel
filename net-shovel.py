@@ -1,19 +1,10 @@
-"""
-net-shovel
-==========
-
-session-summary:
-- Capture every 10 seconds using tcpdump
-- When a 10 second capture file is finished analyse it using dpkt
-- Print connection summary to stdout
-- Local | Remote | Down | Up
-
-"""
 import dpkt
 import socket
 from IPy import IP
 import os
 import time
+import datetime
+import shutil
 
 def main():
     directory = '/home/john-bool/github/net-shovel/tcpdump/'
@@ -28,8 +19,7 @@ def main():
     while (True):
 
         if (fileCountNew > fileCountOld):
-            time.sleep(1)
-            
+
             dirSummary = {}
             dirSummary = getDirSummary(directory, True)
             totalSummary = mergeDicts(dirSummary, totalSummary)
@@ -80,6 +70,11 @@ def getDirSummary(directory, consume=False):
     totalSummary = {}
     fileSummary = {}
 
+    try:
+        os.mkdir(directory + 'processed/')
+    except OSError:
+        fileCounter = 1
+
     totalFiles = len(os.listdir(directory))
 
     for fileName in os.listdir(directory):
@@ -96,51 +91,65 @@ def getDirSummary(directory, consume=False):
                 fileSummary = getFileSummary(directory + fileName)
 
                 if (consume == True):
-                    os.remove(directory + fileName)
+                    os.rename(directory + fileName, directory + '/processed/' + fileName)
+                    #os.remove(directory + fileName)
 
             totalSummary = mergeDicts(fileSummary, totalSummary)
             fileSummary = {}
 
     return totalSummary
 
+
 def getFileSummary(filePath):
     connectionList = {}
 
-    f = open(filePath, 'r')
+    f = open(filePath, 'rb')
 
     pcap = dpkt.pcap.Reader(f)
 
-    for ts, buf in pcap:
-        eth = dpkt.ethernet.Ethernet(buf)
-        if (eth.type != dpkt.ethernet.ETH_TYPE_IP):
-    		continue
+    try:
+        for ts, buf in pcap:
+            eth = dpkt.ethernet.Ethernet(buf)
+            if (eth.type != dpkt.ethernet.ETH_TYPE_IP):
+        		continue
 
-        ip = eth.data
+            ip = eth.data
+            try:
+                src = ip_to_str(ip.src)
+            except AttributeError:
+                print('[EXCEPTION] AtributeError')
+                print('Packet Timestamp: ' + str(datetime.datetime.utcfromtimestamp(ts)))
+                print('filePath = ' + filePath)
+                break
 
-        src = ip_to_str(ip.src)
-        dst = ip_to_str(ip.dst)
-        size = ip.len + 14
+            dst = ip_to_str(ip.dst)
+            size = ip.len + 14
 
-        tmpIP = IP(src)
+            tmpIP = IP(src)
 
-        # Determine packet direction
-        direction = 'z'
-        if (tmpIP.iptype() == 'PRIVATE'):
-            direction = 'u'
-            local = src
-            remote = dst
-        else:
-            direction = 'd'
-            remote = src
-            local = dst
+            # Determine packet direction
+            direction = 'z'
+            if (tmpIP.iptype() == 'PRIVATE'):
+                direction = 'u'
+                local = src
+                remote = dst
+            else:
+                direction = 'd'
+                remote = src
+                local = dst
 
-        key = '{0}:{1}:{2}'.format(local, remote, direction)
+            key = '{0}:{1}:{2}'.format(local, remote, direction)
 
-        # Add connection to the dict
-        if (connectionList.has_key(key)):
-            connectionList[key] = connectionList[key] + size
-        else:
-            connectionList[key] = size
+            # Add connection to the dict
+            if (connectionList.has_key(key)):
+                connectionList[key] = connectionList[key] + size
+            else:
+                connectionList[key] = size
+
+    except dpkt.dpkt.NeedData:
+        print('[EXCEPTION] NeedData')
+        print('Packet Timestamp: ' + str(datetime.datetime.utcfromtimestamp(ts)))
+        print('filePath = ' + filePath)
 
     f.close()
     return connectionList
@@ -172,7 +181,6 @@ def printConnectionList(connectionList):
 
             if (connectionsTmp.has_key(keyOther)):
                 up = connectionsTmp[keyOther]
-                connectionsTmp[keyOther] = -2
         else:
             up = connectionsTmp[key]
 
@@ -181,19 +189,22 @@ def printConnectionList(connectionList):
 
             if (connectionsTmp.has_key(keyOther)):
                 down = connectionsTmp[keyOther]
-                connectionsTmp[keyOther] = -2
 
-        a = ''
-        b = ''
+        # Debug. Show keys and values that make up the printed summary
+        transferA = ''
+        transferB = ''
 
-        if (connectionsTmp.has_key(key)):
-            a = '{0} = {1}'.format(key, connectionsTmp[key])
-        if (connectionsTmp.has_key(keyOther)):
-            b = '{0} = {1}'.format(keyOther, connectionsTmp[keyOther])
+        if (connectionsTmp.has_key(key) and connectionsTmp[key] != -2):
+            transferA = '{0} = {1}'.format(key, connectionsTmp[key])
+        if (connectionsTmp.has_key(keyOther) and connectionsTmp[keyOther] != -2):
+            transferB = '{0} = {1}'.format(keyOther, connectionsTmp[keyOther])
 
-        c = a + ' | ' + b
+        transferParts = '{0:<40} | {1}'.format(transferA, transferB)
 
-        print('{0:<16} {1:<16} {2:<10} {3:<10} | {4}'.format(local, remote, down, up, c))
+        # Mark the key as processed
+        connectionsTmp[keyOther] = -2
+
+        print('{0:<16} {1:<16} {2:<10} {3:<10} | {4}'.format(local, remote, down, up, transferParts))
 
 def ip_to_str(address):
     """Print out an IP address given a string
@@ -206,5 +217,15 @@ def ip_to_str(address):
 
     result = socket.inet_ntop(socket.AF_INET, address)
     return result
+
+def mac_addr(address):
+    """Convert a MAC address to a readable/printable string
+
+       Args:
+           address (str): a MAC address in hex form (e.g. '\x01\x02\x03\x04\x05\x06')
+       Returns:
+           str: Printable/readable MAC address
+    """
+    return ':'.join('%02x' % ord(b) for b in address)
 
 main()

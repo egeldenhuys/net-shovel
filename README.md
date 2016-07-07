@@ -4,6 +4,7 @@ net-shovel
 Dig up statistics on your network traffic!
 
 ----
+
 ## Branch: feature-session-summary
 - Capture every 10 seconds using tcpdump
 - When a 10 second capture file is finished analyse it
@@ -12,23 +13,12 @@ Dig up statistics on your network traffic!
   - Current analysis
 - Format: `Local | Remote | Down | Up`
 
-### TODO
-Fix:
-```
-File "net-shovel.py", line 210, in <module>
-  main()
-File "net-shovel.py", line 34, in main
-  dirSummary = getDirSummary(directory, True)
-File "net-shovel.py", line 96, in getDirSummary
-  fileSummary = getFileSummary(directory + fileName)
-File "net-shovel.py", line 113, in getFileSummary
-  for ts, buf in pcap:
-File "/home/john-bool/.local/lib/python2.7/site-packages/dpkt/pcap.py", line 186, in __iter__
-  hdr = self.__ph(buf)
-File "/home/john-bool/.local/lib/python2.7/site-packages/dpkt/dpkt.py", line 90, in __init__
-  raise NeedData
-dpkt.dpkt.NeedData
-```
+### Bugs
+- Sometimes tries to analyze .pcap before it has been fully written by tcpdump
+  - Causes AttributeError and NeedData exceptions
+
+### Links
+- [dpkt](http://dpkt.readthedocs.io/en/latest/)
 
 ### Development Environment
 
