@@ -1,3 +1,21 @@
+"""net-shovel
+
+Description:
+    This program will analyse .pcap files in the ./tcpdump/ directory
+    and print the total summary and the partial summary when a new
+    .pcap file is detected.
+
+Known Bugs:
+    Sometimes attempts to analyze a pcap file before it has been completely
+    written by tcpdump. See getDirSummary()
+
+Outputs to stdout:
+    local | remote | down | up | debug...
+
+Author:
+    Evert Geldenhuys (egeldenuys)
+"""
+
 import dpkt
 import socket
 from IPy import IP
@@ -7,7 +25,7 @@ import datetime
 import shutil
 
 def main():
-    directory = '/home/john-bool/github/net-shovel/tcpdump/'
+    directory = 'tcpdump/'
 
     print('Total Summary:')
     totalSummary = getDirSummary(directory, True)
@@ -36,6 +54,17 @@ def main():
         time.sleep(1)
 
 def getBytes(connectionList):
+    """Get the total bytes transfered in the given ConnectionList dict format
+
+    Args:
+        connectionList: The special format connectionList dict
+    Returns:
+        total down, total up, total combined
+    Example:
+        connections = getFileSummary(filePath)
+        down, up, total = getBytes(connections)
+    """
+
     down = -1
     up = -1
 
@@ -52,7 +81,19 @@ def getBytes(connectionList):
     return down, up, total
 
 def mergeDicts(src, dst):
+    """Merge two connection dicts. Copies new keys to dst and increments
+    values for existing keys
 
+    Args:
+        src: Source connections dict
+        dst: Destination connections dict
+    Notes:
+        The dst dict should be the larger dict
+    Returns:
+        A new connections dict containing the combined keys and values
+    """
+
+    # TODO: How efficient is this?
     result = dst.copy()
 
     for key in src.keys():
@@ -64,6 +105,17 @@ def mergeDicts(src, dst):
     return result
 
 def getDirSummary(directory, consume=False):
+    """Get the connection summary for all .pcap files in given directory
+
+    Args:
+        directory: The directory to search for .pcap fileSummary
+        consume  : If True, will move the processed .pcap file to
+                    directory/'processed'
+    Returns:
+        A connections dict containing the combined summary of all .pcap fileSummary
+        in 'directory'
+    """
+
     fileCounter = 1
     totalFiles = -1
 
@@ -91,8 +143,9 @@ def getDirSummary(directory, consume=False):
                 fileSummary = getFileSummary(directory + fileName)
 
                 if (consume == True):
-                    os.rename(directory + fileName, directory + '/processed/' + fileName)
-                    #os.remove(directory + fileName)
+                    # TODO: Moving files for debugging purposes. Delete when done.
+                    os.rename(directory + fileName, directory + 'processed/' + fileName)
+                    # os.remove(directory + fileName)
 
             totalSummary = mergeDicts(fileSummary, totalSummary)
             fileSummary = {}
@@ -101,6 +154,21 @@ def getDirSummary(directory, consume=False):
 
 
 def getFileSummary(filePath):
+    """Get the connection summary from the given .pcap file
+
+    Args:
+        filePath: The path of the .pcap format file
+    Returns:
+        A special format dict:
+            Key: local:remote:direction
+                local       - local IP string
+                remote      - remote IP string
+                direction   - Direction of bytes transfered. ('d'/'u')
+            Example:
+                192.168.1.1:8.8.8.8:d
+            Value: bytes transfered in 'direction' between the two IPs
+    """
+
     connectionList = {}
 
     f = open(filePath, 'rb')
@@ -155,9 +223,12 @@ def getFileSummary(filePath):
     return connectionList
 
 def printConnectionList(connectionList):
-    """
-    Format:
-        local | remote | down | up
+    """Print the connection summary from the given connections dict
+
+    Args:
+        connectionList - The special format connections dict to print
+    Prints:
+        local remote download upload | key1 = val1 | key2 = val2
     """
 
     connectionsTmp = connectionList.copy()

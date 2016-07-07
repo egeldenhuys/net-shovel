@@ -5,21 +5,6 @@ Dig up statistics on your network traffic!
 
 ----
 
-## Branch: feature-session-summary
-- Capture every 10 seconds using tcpdump
-- When a 10 second capture file is finished analyse it
-- Print connection summary to stdout
-  - Total
-  - Current analysis
-- Format: `Local | Remote | Down | Up`
-
-### Bugs
-- Sometimes tries to analyze .pcap before it has been fully written by tcpdump
-  - Causes AttributeError and NeedData exceptions
-
-### Links
-- [dpkt](http://dpkt.readthedocs.io/en/latest/)
-
 ### Development Environment
 
 - Linux Mint 18
