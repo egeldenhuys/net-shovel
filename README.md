@@ -1,6 +1,13 @@
 net-shovel
 ==========
 
+## feature-pipe-tcpdump
+- We want to avoid writing files to disk and then analysing them
+- Call tcmpdump from net-shovel.py and pipe the Outputs
+- Asynchronous
+
+----
+
 net-shovel is currently under active development and a fully functional version is not yet available. The requirements will change as the project develops.
 
 See the [develop](https://github.com/egeldenhuys/net-shovel/tree/develop) branch and other [branches](https://github.com/egeldenhuys/net-shovel/branches) for the current state of the project.

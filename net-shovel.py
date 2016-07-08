@@ -15,43 +15,17 @@ Outputs to stdout:
 Author:
     Evert Geldenhuys (egeldenuys)
 """
-
-import dpkt
 import socket
-from IPy import IP
 import os
 import time
 import datetime
 import shutil
 
+import dpkt
+from IPy import IP
+
 def main():
-    directory = 'tcpdump/'
 
-    print('Total Summary:')
-    totalSummary = getDirSummary(directory, True)
-    printConnectionList(totalSummary)
-
-    fileCountOld = len(os.listdir(directory))
-    fileCountNew = fileCountOld
-
-    while (True):
-
-        if (fileCountNew > fileCountOld):
-
-            dirSummary = {}
-            dirSummary = getDirSummary(directory, True)
-            totalSummary = mergeDicts(dirSummary, totalSummary)
-
-            print('Total Summary:')
-            printConnectionList(totalSummary)
-
-            print('Directory Summary:')
-            printConnectionList(dirSummary)
-
-            fileCountOld = len(os.listdir(directory))
-
-        fileCountNew = len(os.listdir(directory))
-        time.sleep(1)
 
 def getBytes(connectionList):
     """Get the total bytes transfered in the given ConnectionList dict format
