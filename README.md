@@ -2,9 +2,16 @@ net-shovel
 ==========
 
 ## feature-pipe-tcpdump
-- We want to avoid writing files to disk and then analysing them
-- Call tcmpdump from net-shovel.py and pipe the Outputs
-- Asynchronous
+We want to avoid writing files to the disk
+
+## Aim
+- Call tcpdump from net-shovel.py and pipe the output
+- Analyze the packets as they arrive
+- tcpdump should operate on its own thread
+
+## Links
+- http://stackoverflow.com/questions/17904231/handling-tcpdump-output-in-python
+- http://unix.stackexchange.com/questions/15989/how-to-process-pipe-tcpdumps-output-in-realtime
 
 ----
 
