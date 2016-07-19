@@ -20,11 +20,21 @@ import os
 import time
 import datetime
 import shutil
+import subprocess
 
 import dpkt
 from IPy import IP
 
 def main():
+
+    i = 1
+
+    # TODO: Understand why this code works
+    p = subprocess.Popen(('sudo', 'tcpdump', '-ieth0', '-s96', '-l', '-n'), stdout=subprocess.PIPE)
+    for row in iter(p.stdout.readline, b''):
+        print(i)
+        print row.rstrip()
+        i = i + 1
 
 
 def getBytes(connectionList):
