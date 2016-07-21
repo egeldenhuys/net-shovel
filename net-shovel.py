@@ -15,43 +15,123 @@ Outputs to stdout:
 Author:
     Evert Geldenhuys (egeldenuys)
 """
-
-import dpkt
 import socket
-from IPy import IP
-import os
 import time
-import datetime
-import shutil
+import subprocess
+from IPy import IP
 
 def main():
-    directory = 'tcpdump/'
 
-    print('Total Summary:')
-    totalSummary = getDirSummary(directory, True)
-    printConnectionList(totalSummary)
+    conList = {}
+    refresh = time.time()
 
-    fileCountOld = len(os.listdir(directory))
-    fileCountNew = fileCountOld
+    p = subprocess.Popen(('sudo', 'tcpdump', '-ieth0', '-s96', '-l', '-n'), stdout=subprocess.PIPE)
+    for row in iter(p.stdout.readline, b''):
+        rawData = row.rstrip()
 
-    while (True):
+        splitData = rawData.split(' ')
 
-        if (fileCountNew > fileCountOld):
+        packetType = splitData[1]
+        if (packetType != 'IP'):
+            continue
 
-            dirSummary = {}
-            dirSummary = getDirSummary(directory, True)
-            totalSummary = mergeDicts(dirSummary, totalSummary)
+        srcAndPort = splitData[2]
+        dstAndPort = splitData[4]
 
-            print('Total Summary:')
-            printConnectionList(totalSummary)
+        src = getIpOnly(srcAndPort)
+        dst = getIpOnly(dstAndPort)
 
-            print('Directory Summary:')
-            printConnectionList(dirSummary)
+        size = 14
 
-            fileCountOld = len(os.listdir(directory))
+        for index in range(len(splitData)):
+            if (splitData[index] == 'length'):
+                length = int(splitData[index + 1])
+                size = length + 14
 
-        fileCountNew = len(os.listdir(directory))
-        time.sleep(1)
+
+        conList = addToConnectionList(src, dst, size, conList)
+
+        if time.time() - refresh > 1:
+            refresh = time.time()
+            print('--------------------------------------------')
+            printConnectionList(conList)
+
+            down, up, total = getBytes(conList)
+            print('MiB: ')
+            print('Down  : ' + str(down / 1024 / 1024))
+            print('Up    : ' + str(up / 1024 / 1024))
+            print('Total : ' + str(total / 1024 / 1024))
+
+def getIpOnly(ipAndPort):
+    """Gets the IP from a IP.PORT formatted string
+
+    Args:
+        ipAndPort: A string of the format IP.PORT (123.123.123.80)
+    Returns:
+        A string containing only the IP
+    """
+
+    tmpSrc = ipAndPort.split('.')
+    src = tmpSrc[0] + '.' + tmpSrc[1] + '.' + tmpSrc[2] + '.' + tmpSrc[3]
+    src = src.strip(':')
+
+    return src
+
+def addToConnectionList(src, dst, size, connectionList):
+    """Add the given connection to the Connection List
+
+    Args:
+        src: The source  IP address string
+        dst: The destination IP address string
+        size: The size of the packet (inluding the 14 byte link header). TODO: Confirm this!
+        connectionList: The special formatted dict containing the connections
+    dict Key Format:
+        Key: local:remote:direction
+            local       - local IP string
+            remote      - remote IP string
+            direction   - Direction of bytes transfered. ('d'/'u')
+        Example:
+            192.168.1.1:8.8.8.8:d
+        Value: bytes transfered in 'direction' between the two IPs
+    Returns:
+        Special key format dict containing all the connections
+    """
+
+    tmpSrcIP = IP(src)
+
+    direction = 'z'
+    if (tmpSrcIP.iptype() == 'PRIVATE'):
+        direction = 'u'
+        directionSwap = 'd'
+        local = src
+        remote = dst
+    else:
+        direction = 'd'
+        directionSwap = 'u'
+        remote = src
+        local = dst
+
+    key = '{0}:{1}:{2}'.format(local, remote, direction)
+
+    # Somtimes they are both PRIVATE IPs so we check if we have seen one of
+    # them before in the connection list. Otherwise direction is always upload
+    keySwapped_compare = '{0}:{1}:{2}'.format(remote, local, direction)
+    keySwapped_insert = '{0}:{1}:{2}'.format(remote, local, directionSwap)
+
+    # Add connection to the dict
+    if (connectionList.has_key(key)):
+        connectionList[key] = connectionList[key] + size
+    else:
+        if connectionList.has_key(keySwapped_compare):
+            if connectionList.has_key(keySwapped_insert):
+                connectionList[keySwapped_insert] = size + connectionList[keySwapped_insert]
+            else:
+                connectionList[keySwapped_insert] = size
+        else:
+            connectionList[key] = size
+
+    return connectionList
+
 
 def getBytes(connectionList):
     """Get the total bytes transfered in the given ConnectionList dict format
@@ -103,124 +183,6 @@ def mergeDicts(src, dst):
             result[key] = src[key]
 
     return result
-
-def getDirSummary(directory, consume=False):
-    """Get the connection summary for all .pcap files in given directory
-
-    Args:
-        directory: The directory to search for .pcap fileSummary
-        consume  : If True, will move the processed .pcap file to
-                    directory/'processed'
-    Returns:
-        A connections dict containing the combined summary of all .pcap fileSummary
-        in 'directory'
-    """
-
-    fileCounter = 1
-    totalFiles = -1
-
-    totalSummary = {}
-    fileSummary = {}
-
-    try:
-        os.mkdir(directory + 'processed/')
-    except OSError:
-        fileCounter = 1
-
-    totalFiles = len(os.listdir(directory))
-
-    for fileName in os.listdir(directory):
-        filenameTmp, file_extension = os.path.splitext(fileName)
-
-        if (file_extension == '.pcap'):
-
-            statinfo = os.stat(directory + fileName)
-
-            if (statinfo.st_size > 0):
-                print('[{0} / {1}] Analyzing {2}...'.format(fileCounter, totalFiles, directory + fileName))
-                fileCounter += 1
-
-                fileSummary = getFileSummary(directory + fileName)
-
-                if (consume == True):
-                    # TODO: Moving files for debugging purposes. Delete when done.
-                    os.rename(directory + fileName, directory + 'processed/' + fileName)
-                    # os.remove(directory + fileName)
-
-            totalSummary = mergeDicts(fileSummary, totalSummary)
-            fileSummary = {}
-
-    return totalSummary
-
-
-def getFileSummary(filePath):
-    """Get the connection summary from the given .pcap file
-
-    Args:
-        filePath: The path of the .pcap format file
-    Returns:
-        A special format dict:
-            Key: local:remote:direction
-                local       - local IP string
-                remote      - remote IP string
-                direction   - Direction of bytes transfered. ('d'/'u')
-            Example:
-                192.168.1.1:8.8.8.8:d
-            Value: bytes transfered in 'direction' between the two IPs
-    """
-
-    connectionList = {}
-
-    f = open(filePath, 'rb')
-
-    pcap = dpkt.pcap.Reader(f)
-
-    try:
-        for ts, buf in pcap:
-            eth = dpkt.ethernet.Ethernet(buf)
-            if (eth.type != dpkt.ethernet.ETH_TYPE_IP):
-        		continue
-
-            ip = eth.data
-            try:
-                src = ip_to_str(ip.src)
-            except AttributeError:
-                print('[EXCEPTION] AtributeError')
-                print('Packet Timestamp: ' + str(datetime.datetime.utcfromtimestamp(ts)))
-                print('filePath = ' + filePath)
-                break
-
-            dst = ip_to_str(ip.dst)
-            size = ip.len + 14
-
-            tmpIP = IP(src)
-
-            # Determine packet direction
-            direction = 'z'
-            if (tmpIP.iptype() == 'PRIVATE'):
-                direction = 'u'
-                local = src
-                remote = dst
-            else:
-                direction = 'd'
-                remote = src
-                local = dst
-
-            key = '{0}:{1}:{2}'.format(local, remote, direction)
-
-            # Add connection to the dict
-            if (connectionList.has_key(key)):
-                connectionList[key] = connectionList[key] + size
-            else:
-                connectionList[key] = size
-
-    except dpkt.dpkt.NeedData:
-        print('[EXCEPTION] NeedData')
-        print('Packet Timestamp: ' + str(datetime.datetime.utcfromtimestamp(ts)))
-        print('filePath = ' + filePath)
-
-    f.close()
-    return connectionList
 
 def printConnectionList(connectionList):
     """Print the connection summary from the given connections dict
