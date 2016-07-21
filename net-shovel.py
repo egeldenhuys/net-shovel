@@ -27,14 +27,115 @@ from IPy import IP
 
 def main():
 
-    i = 1
+    conList = {}
+    refresh = time.time()
 
-    # TODO: Understand why this code works
     p = subprocess.Popen(('sudo', 'tcpdump', '-ieth0', '-s96', '-l', '-n'), stdout=subprocess.PIPE)
     for row in iter(p.stdout.readline, b''):
-        print(i)
-        print row.rstrip()
-        i = i + 1
+        rawData = row.rstrip()
+
+        splitData = rawData.split(' ')
+
+        packetType = splitData[1]
+        if (packetType != 'IP'):
+            continue
+
+        srcAndPort = splitData[2]
+        dstAndPort = splitData[4]
+
+        src = getIpOnly(srcAndPort)
+        dst = getIpOnly(dstAndPort)
+
+        size = 14
+
+        for index in range(len(splitData)):
+            if (splitData[index] == 'length'):
+                length = int(splitData[index + 1])
+                size = length + 14
+
+
+        conList = addToConnectionList(src, dst, size, conList)
+
+        if time.time() - refresh > 1:
+            refresh = time.time()
+            print('--------------------------------------------')
+            printConnectionList(conList)
+
+            down, up, total = getBytes(conList)
+            print('MiB: ')
+            print('Down  : ' + str(down / 1024 / 1024))
+            print('Up    : ' + str(up / 1024 / 1024))
+            print('Total : ' + str(total / 1024 / 1024))
+
+def getIpOnly(ipAndPort):
+    """Gets the IP from a IP.PORT formatted string
+
+    Args:
+        ipAndPort: A string of the format IP.PORT (123.123.123.80)
+    Returns:
+        A string containing only the IP
+    """
+
+    tmpSrc = ipAndPort.split('.')
+    src = tmpSrc[0] + '.' + tmpSrc[1] + '.' + tmpSrc[2] + '.' + tmpSrc[3]
+    src = src.strip(':')
+
+    return src
+
+def addToConnectionList(src, dst, size, connectionList):
+    """Add the given connection to the Connection List
+
+    Args:
+        src: The source  IP address string
+        dst: The destination IP address string
+        size: The size of the packet (inluding the 14 byte link header). TODO: Confirm this!
+        connectionList: The special formatted dict containing the connections
+    dict Key Format:
+        Key: local:remote:direction
+            local       - local IP string
+            remote      - remote IP string
+            direction   - Direction of bytes transfered. ('d'/'u')
+        Example:
+            192.168.1.1:8.8.8.8:d
+        Value: bytes transfered in 'direction' between the two IPs
+    Returns:
+        Special key format dict containing all the connections
+    """
+    
+    tmpSrcIP = IP(src)
+
+    direction = 'z'
+    if (tmpSrcIP.iptype() == 'PRIVATE'):
+        direction = 'u'
+        directionSwap = 'd'
+        local = src
+        remote = dst
+    else:
+        direction = 'd'
+        directionSwap = 'u'
+        remote = src
+        local = dst
+
+    key = '{0}:{1}:{2}'.format(local, remote, direction)
+
+    # Somtimes they are both PRIVATE IPs so we check if we have seen one of
+    # them before in the connection list. Otherwise direction is always upload
+    keySwapped_compare = '{0}:{1}:{2}'.format(remote, local, direction)
+    keySwapped_insert = '{0}:{1}:{2}'.format(remote, local, directionSwap)
+
+    # Add connection to the dict
+    if (connectionList.has_key(key)):
+        connectionList[key] = connectionList[key] + size
+    else:
+        if connectionList.has_key(keySwapped_compare):
+            if connectionList.has_key(keySwapped_insert):
+                connectionList[keySwapped_insert] = size + connectionList[keySwapped_insert]
+            else:
+                connectionList[keySwapped_insert] = size
+        else:
+            connectionList[key] = size
+
+    return connectionList
 
 
 def getBytes(connectionList):
