@@ -16,13 +16,8 @@ Author:
     Evert Geldenhuys (egeldenuys)
 """
 import socket
-import os
 import time
-import datetime
-import shutil
 import subprocess
-
-import dpkt
 from IPy import IP
 
 def main():
@@ -101,7 +96,7 @@ def addToConnectionList(src, dst, size, connectionList):
     Returns:
         Special key format dict containing all the connections
     """
-    
+
     tmpSrcIP = IP(src)
 
     direction = 'z'
@@ -188,124 +183,6 @@ def mergeDicts(src, dst):
             result[key] = src[key]
 
     return result
-
-def getDirSummary(directory, consume=False):
-    """Get the connection summary for all .pcap files in given directory
-
-    Args:
-        directory: The directory to search for .pcap fileSummary
-        consume  : If True, will move the processed .pcap file to
-                    directory/'processed'
-    Returns:
-        A connections dict containing the combined summary of all .pcap fileSummary
-        in 'directory'
-    """
-
-    fileCounter = 1
-    totalFiles = -1
-
-    totalSummary = {}
-    fileSummary = {}
-
-    try:
-        os.mkdir(directory + 'processed/')
-    except OSError:
-        fileCounter = 1
-
-    totalFiles = len(os.listdir(directory))
-
-    for fileName in os.listdir(directory):
-        filenameTmp, file_extension = os.path.splitext(fileName)
-
-        if (file_extension == '.pcap'):
-
-            statinfo = os.stat(directory + fileName)
-
-            if (statinfo.st_size > 0):
-                print('[{0} / {1}] Analyzing {2}...'.format(fileCounter, totalFiles, directory + fileName))
-                fileCounter += 1
-
-                fileSummary = getFileSummary(directory + fileName)
-
-                if (consume == True):
-                    # TODO: Moving files for debugging purposes. Delete when done.
-                    os.rename(directory + fileName, directory + 'processed/' + fileName)
-                    # os.remove(directory + fileName)
-
-            totalSummary = mergeDicts(fileSummary, totalSummary)
-            fileSummary = {}
-
-    return totalSummary
-
-
-def getFileSummary(filePath):
-    """Get the connection summary from the given .pcap file
-
-    Args:
-        filePath: The path of the .pcap format file
-    Returns:
-        A special format dict:
-            Key: local:remote:direction
-                local       - local IP string
-                remote      - remote IP string
-                direction   - Direction of bytes transfered. ('d'/'u')
-            Example:
-                192.168.1.1:8.8.8.8:d
-            Value: bytes transfered in 'direction' between the two IPs
-    """
-
-    connectionList = {}
-
-    f = open(filePath, 'rb')
-
-    pcap = dpkt.pcap.Reader(f)
-
-    try:
-        for ts, buf in pcap:
-            eth = dpkt.ethernet.Ethernet(buf)
-            if (eth.type != dpkt.ethernet.ETH_TYPE_IP):
-        		continue
-
-            ip = eth.data
-            try:
-                src = ip_to_str(ip.src)
-            except AttributeError:
-                print('[EXCEPTION] AtributeError')
-                print('Packet Timestamp: ' + str(datetime.datetime.utcfromtimestamp(ts)))
-                print('filePath = ' + filePath)
-                break
-
-            dst = ip_to_str(ip.dst)
-            size = ip.len + 14
-
-            tmpIP = IP(src)
-
-            # Determine packet direction
-            direction = 'z'
-            if (tmpIP.iptype() == 'PRIVATE'):
-                direction = 'u'
-                local = src
-                remote = dst
-            else:
-                direction = 'd'
-                remote = src
-                local = dst
-
-            key = '{0}:{1}:{2}'.format(local, remote, direction)
-
-            # Add connection to the dict
-            if (connectionList.has_key(key)):
-                connectionList[key] = connectionList[key] + size
-            else:
-                connectionList[key] = size
-
-    except dpkt.dpkt.NeedData:
-        print('[EXCEPTION] NeedData')
-        print('Packet Timestamp: ' + str(datetime.datetime.utcfromtimestamp(ts)))
-        print('filePath = ' + filePath)
-
-    f.close()
-    return connectionList
 
 def printConnectionList(connectionList):
     """Print the connection summary from the given connections dict

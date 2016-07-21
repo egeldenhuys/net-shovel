@@ -24,10 +24,8 @@ View which machine is consuming all the bandwidth by collection statistics on In
 - Linux Mint 18
 
 ### Dependencies
-- Python 2.7.11+
+- Python 2.7.11
 	- python-pip
-		- dpkt
 		- setuptools
 		- IPy
-		- dnspython
 - tcpdump
