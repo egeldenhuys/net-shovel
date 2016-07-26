@@ -21,46 +21,50 @@ import subprocess
 from IPy import IP
 
 def main():
+    otherTotal = 0
 
     conList = {}
     refresh = time.time()
 
-    p = subprocess.Popen(('sudo', 'tcpdump', '-ieth0', '-s96', '-l', '-n'), stdout=subprocess.PIPE)
+    p = subprocess.Popen(('sudo', 'tcpdump', '-ieth0', '-s96', '-l', '-n', '-e'), stdout=subprocess.PIPE)
     for row in iter(p.stdout.readline, b''):
         rawData = row.rstrip()
+        print(rawData)
 
         splitData = rawData.split(' ')
 
-        packetType = splitData[1]
-        if (packetType != 'IP'):
-            continue
-
-        srcAndPort = splitData[2]
-        dstAndPort = splitData[4]
-
-        src = getIpOnly(srcAndPort)
-        dst = getIpOnly(dstAndPort)
-
-        size = 14
-
+        length = 0
         for index in range(len(splitData)):
             if (splitData[index] == 'length'):
-                length = int(splitData[index + 1])
-                size = length + 14
+                length = int(splitData[index + 1].strip(':'))
+                break
 
+        # packetType = splitData[1]
+        # if (packetType != 'IP'):
+        #     otherTotal += size
+        #    continue
 
-        conList = addToConnectionList(src, dst, size, conList)
+        srcAndPort = splitData[1]
+        dstAndPort = splitData[3]
 
-        if time.time() - refresh > 1:
-            refresh = time.time()
-            print('--------------------------------------------')
-            printConnectionList(conList)
+        #src = getIpOnly(srcAndPort)
+        #dst = getIpOnly(dstAndPort)
 
-            down, up, total = getBytes(conList)
-            print('MiB: ')
-            print('Down  : ' + str(down / 1024 / 1024))
-            print('Up    : ' + str(up / 1024 / 1024))
-            print('Total : ' + str(total / 1024 / 1024))
+        src = '192.168.1.1'
+        dst = '200.1.1.1'
+
+        conList = addToConnectionList(src, dst, length, conList)
+
+        #if time.time() - refresh > 1:
+        refresh = time.time()
+        print('--------------------------------------')
+        # printConnectionList(conList)
+
+        down, up, total = getBytes(conList)
+        print('Bytes: ')
+        print('Down  : ' + str(down))
+        print('Up    : ' + str(up))
+        print('Total : ' + str(total + otherTotal))
 
 def getIpOnly(ipAndPort):
     """Gets the IP from a IP.PORT formatted string
@@ -145,8 +149,8 @@ def getBytes(connectionList):
         down, up, total = getBytes(connections)
     """
 
-    down = -1
-    up = -1
+    down = 0
+    up = 0
 
     for key in connectionList.keys():
         local, remote, direction = key.split(':')
